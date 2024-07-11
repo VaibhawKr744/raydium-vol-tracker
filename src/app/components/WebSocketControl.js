@@ -2,12 +2,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import RealTimeChart from "./ RealTimeChart";
 
 const BITQUERY_WS_URL = "wss://streaming.bitquery.io/eap?token=ory_at_GRtFzlt0Q7a08DOcGBUcGlTHDv4BC5NwY6hxA1I4X-Q.p-GUFa-_LV5kbf0o2N6c6wPX5HMtNT2zltPAuKFU6Ig";
 
 const WebSocketControl = () => {
   const [status, setStatus] = useState("Stopped");
   const [socket, setSocket] = useState(null);
+  const [chartData, setChartData] = useState([]);
 
   useEffect(() => {
     if (status === "Started") {
@@ -52,6 +54,10 @@ const WebSocketControl = () => {
         const response = JSON.parse(event.data);
         if (response.type === "data") {
           console.log("Received data from Bitquery: ", response.payload.data);
+          const totalVolume = response.payload.data.Solana.DEXTradeByTokens[0]?.TotalVolume;
+          if (totalVolume) {
+            setChartData((prevData) => [...prevData, parseFloat(totalVolume)]);
+          }
         }
       };
 
@@ -76,13 +82,14 @@ const WebSocketControl = () => {
   };
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", backgroundColor: "#f8f9fa" }}>
+    <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100vh", backgroundColor: "#f8f9fa" }}>
       <button
         onClick={handleButtonClick}
-        style={{ padding: "10px 20px", fontSize: "16px", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer" }}
+        style={{ padding: "10px 20px", fontSize: "16px", backgroundColor: "#007bff", color: "#fff", border: "none", borderRadius: "4px", cursor: "pointer", marginBottom: "20px" }}
       >
         {status === "Stopped" ? "Start" : "Stop"}
       </button>
+      <RealTimeChart data={chartData} />
     </div>
   );
 };
