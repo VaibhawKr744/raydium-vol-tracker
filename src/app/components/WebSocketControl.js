@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState } from "react";
 import { ClipLoader } from "react-spinners";
 
@@ -8,7 +10,6 @@ const WebSocketControl = () => {
   const [status, setStatus] = useState("Stopped");
   const [socket, setSocket] = useState(null);
   const [tradeData, setTradeData] = useState([]);
-  const [minutes, setMinutes] = useState(1);
   const [limit, setLimit] = useState(10);
   const [loading, setLoading] = useState(false);
 
@@ -41,7 +42,6 @@ const WebSocketControl = () => {
                           Currency: {MintAddress: {is: "So11111111111111111111111111111111111111112"}}
                         }
                       },
-                      Block: {Time: {since: "${new Date(Date.now() - minutes * 60 * 1000).toISOString()}"}},
                       Transaction: {Result: {Success: true}}
                     }
                   ) {
@@ -71,7 +71,7 @@ const WebSocketControl = () => {
                   }
                 }
               }
-              `,
+            `,
           },
         });
         ws.send(message);
@@ -110,10 +110,6 @@ const WebSocketControl = () => {
     fetchTrades();
   };
 
-  const handleMinutesChange = (e) => {
-    setMinutes(e.target.value);
-  };
-
   const handleLimitChange = (e) => {
     setLimit(e.target.value);
   };
@@ -121,16 +117,6 @@ const WebSocketControl = () => {
   return (
     <div className="flex flex-col items-center justify-center h-screen">
       <div className="mb-4 flex items-center">
-        <label className="mr-2">
-          Minutes:
-          <input
-            type="number"
-            value={minutes}
-            onChange={handleMinutesChange}
-            min="1"
-            className="ml-2 p-1 border rounded text-black"
-          />
-        </label>
         <label className="ml-4">
           Limit:
           <input
@@ -150,7 +136,7 @@ const WebSocketControl = () => {
       >
         {loading ? <ClipLoader size={24} color="#ffffff" /> : "Fetch"}
       </button>
-      <div className="overflow-x-auto w-full max-w-7xl mx-auto p-4 custom-scrollbar">
+      <div className="overflow-x-auto w-full max-w-7xl mx-auto p-4" style={{ scrollbarColor: "white" }}>
         <table className="w-full border-collapse">
           <thead>
             <tr className="text-white">
