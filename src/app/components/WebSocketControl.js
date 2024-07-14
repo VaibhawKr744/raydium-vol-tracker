@@ -1,27 +1,27 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import { ClipLoader } from "react-spinners";
 
 const BITQUERY_WS_URL =
   "wss://streaming.bitquery.io/eap?token=ory_at_GRtFzlt0Q7a08DOcGBUcGlTHDv4BC5NwY6hxA1I4X-Q.p-GUFa-_LV5kbf0o2N6c6wPX5HMtNT2zltPAuKFU6Ig";
 
 const WebSocketControl = () => {
-  const [status, setStatus] = useState("Fetch");
+  const [status, setStatus] = useState("Stopped");
   const [socket, setSocket] = useState(null);
   const [tradeData, setTradeData] = useState([]);
-  const [hours, setHours] = useState(1);
+  const [minutes, setMinutes] = useState(1);
   const [limit, setLimit] = useState(10);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    let ws;
+  const fetchTrades = () => {
+    setLoading(true);
+    const ws = new WebSocket(BITQUERY_WS_URL, "graphql-ws");
 
-    const connectWebSocket = () => {
-      ws = new WebSocket(BITQUERY_WS_URL, "graphql-ws");
+    ws.onopen = () => {
+      console.log("Connected to Bitquery.");
+      const initMessage = JSON.stringify({ type: "connection_init" });
+      ws.send(initMessage);
 
-      ws.onopen = () => {
-        console.log("Connected to Bitquery.");
-        const initMessage = JSON.stringify({ type: "connection_init" });
-        ws.send(initMessage);
-
+      setTimeout(() => {
         const message = JSON.stringify({
           type: "start",
           id: "1",
@@ -41,7 +41,7 @@ const WebSocketControl = () => {
                           Currency: {MintAddress: {is: "So11111111111111111111111111111111111111112"}}
                         }
                       },
-                      Block: {Time: {since: "${new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()}"}},
+                      Block: {Time: {since: "${new Date(Date.now() - minutes * 60 * 1000).toISOString()}"}},
                       Transaction: {Result: {Success: true}}
                     }
                   ) {
@@ -71,62 +71,47 @@ const WebSocketControl = () => {
                   }
                 }
               }
-            `,
+              `,
           },
         });
         ws.send(message);
-      };
+      }, 1000);
+    };
 
-      ws.onmessage = (event) => {
-        const response = JSON.parse(event.data);
-        if (response.type === "data") {
-          console.log("Received data from Bitquery: ", response.payload.data);
-          const trades = response.payload.data.Solana.DEXTradeByTokens;
-          if (trades) {
-            setTradeData(trades);
-            setLoading(false); // Stop loading once data is fetched
-            setStatus("Fetch"); // Change status to Fetch to disconnect socket
-          }
+    ws.onmessage = (event) => {
+      const response = JSON.parse(event.data);
+      if (response.type === "data") {
+        console.log("Received data from Bitquery: ", response.payload.data);
+        const trades = response.payload.data.Solana.DEXTradeByTokens;
+        if (trades) {
+          setTradeData(trades);
         }
-      };
-
-      ws.onclose = () => {
-        console.log("Disconnected from Bitquery.");
-        setStatus("Fetch"); // Change status to Fetch to disconnect socket
-        setSocket(null);
-      };
-
-      ws.onerror = (error) => {
-        console.error("WebSocket Error:", error);
-      };
-
-      setSocket(ws);
-    };
-
-    if (status === "Fetch") {
-      connectWebSocket();
-      setLoading(true); // Start loading when fetching data
-    } else {
-      if (ws) {
+        setLoading(false);
         ws.close();
-        setSocket(null);
-      }
-    }
-
-    return () => {
-      if (ws) {
-        ws.close();
-        setSocket(null);
       }
     };
-  }, [status, hours, limit]);
 
-  const handleFetchClick = () => {
-    setStatus("Started");
+    ws.onclose = () => {
+      console.log("Disconnected from Bitquery.");
+      setStatus("Stopped");
+      setSocket(null);
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket Error:", error);
+      setLoading(false);
+    };
+
+    setSocket(ws);
   };
 
-  const handleHoursChange = (e) => {
-    setHours(e.target.value);
+  const handleButtonClick = () => {
+    setStatus("Started");
+    fetchTrades();
+  };
+
+  const handleMinutesChange = (e) => {
+    setMinutes(e.target.value);
   };
 
   const handleLimitChange = (e) => {
@@ -134,85 +119,64 @@ const WebSocketControl = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen bg-gray-100">
-      <div className="mb-4">
-        <label htmlFor="hoursInput" className="mr-2 text-black">
-         Past Hours:
+    <div className="flex flex-col items-center justify-center h-screen">
+      <div className="mb-4 flex items-center">
+        <label className="mr-2">
+          Minutes:
+          <input
+            type="number"
+            value={minutes}
+            onChange={handleMinutesChange}
+            min="1"
+            className="ml-2 p-1 border rounded text-black"
+          />
         </label>
-        <input
-          id="hoursInput"
-          type="number"
-          value={hours}
-          onChange={handleHoursChange}
-          min="1"
-          className="ml-2 p-1 border rounded text-black"
-        />
-        <label htmlFor="limitInput" className="ml-4 text-black">
+        <label className="ml-4">
           Limit:
+          <input
+            type="number"
+            value={limit}
+            onChange={handleLimitChange}
+            min="1"
+            max="100"
+            className="ml-2 p-1 border rounded text-black"
+          />
         </label>
-        <input
-          id="limitInput"
-          type="number"
-          value={limit}
-          onChange={handleLimitChange}
-          min="1"
-          max="100"
-          className="ml-2 p-1 border rounded text-black"
-        />
       </div>
       <button
-        onClick={handleFetchClick}
-        className={`px-4 py-2 text-white bg-blue-500 rounded cursor-pointer mb-4 ${
-          loading ? "opacity-50 pointer-events-none" : ""
-        }`}
+        onClick={handleButtonClick}
+        className="px-4 py-2 mb-4 text-white bg-blue-500 rounded"
+        disabled={loading}
       >
-        {loading ? "Fetching..." : "Fetch"}
+        {loading ? <ClipLoader size={24} color="#ffffff" /> : "Fetch"}
       </button>
-      <div className="w-full bg-white rounded shadow-lg overflow-x-auto">
-        <table className="w-full whitespace-nowrap divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Currency
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Currency Symbol
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Mint Address
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Dex Protocol
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Market Address
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Volume
-              </th>
+      <div className="overflow-x-auto w-full max-w-7xl mx-auto p-4 custom-scrollbar">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr className="text-white">
+              <th className="px-4 py-2 border">Protocol Name</th>
+              <th className="px-4 py-2 border">Volume (USD)</th>
+              <th className="px-4 py-2 border">Market Address</th>
+              <th className="px-4 py-2 border">Currency</th>
+              <th className="px-4 py-2 border">Currency Symbol</th>
+              <th className="px-4 py-2 border">Currency Mint Address</th>
+              <th className="px-4 py-2 border">Side Currency</th>
+              <th className="px-4 py-2 border">Side Currency Symbol</th>
+              <th className="px-4 py-2 border">Side Currency Mint Address</th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody>
             {tradeData.map((trade, index) => (
-              <tr key={index}>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {trade.Trade.Currency.Name}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {trade.Trade.Currency.Symbol}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {trade.Trade.Currency.MintAddress}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {trade.Trade.Dex.ProtocolName}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {trade.Trade.Market.MarketAddress}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {trade.volume} USD
-                </td>
+              <tr key={index} className="text-white">
+                <td className="px-4 py-2 border">{trade.Trade.Dex.ProtocolName}</td>
+                <td className="px-4 py-2 border">{trade.volume}</td>
+                <td className="px-4 py-2 border">{trade.Trade.Market.MarketAddress}</td>
+                <td className="px-4 py-2 border">{trade.Trade.Currency.Name}</td>
+                <td className="px-4 py-2 border">{trade.Trade.Currency.Symbol}</td>
+                <td className="px-4 py-2 border">{trade.Trade.Currency.MintAddress}</td>
+                <td className="px-4 py-2 border">{trade.Trade.Side.Currency.Name}</td>
+                <td className="px-4 py-2 border">{trade.Trade.Side.Currency.Symbol}</td>
+                <td className="px-4 py-2 border">{trade.Trade.Side.Currency.MintAddress}</td>
               </tr>
             ))}
           </tbody>
